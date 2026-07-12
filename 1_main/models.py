@@ -1,4 +1,4 @@
-class Transaction():
+class Transaction:
     def __init__(self, transaction_id, amount, category, transaction_type):
         self.__transaction_id = transaction_id
         self.__amount = 0
