@@ -55,25 +55,43 @@
 • Архив проектов: orders-manager (Консоль + psycopg2 + aiogram buttons).
 • Текущий проект: Учет расходов и доходов "TracFinance" пример проекта (budgetcoin.ru).
 • Текущий Этап: ЭТАП 3. ООП и Асинхронная архитектура.
-• Пройденный шаг (11.3): Реализован асинхронный класс AsyncTransactionRepository в wallet_repository.py
-    (методы add_transaction с RETURNING id, delete_transaction через execute и get_user_transaction через fetch).
-        Настроена валидация параметров PostgreSQL из .env через pydantic-settings в config.py. В main.py собран словарь-адаптер db_config.
-            Развернут локальный API-сервер api.py на FastAPI, решен баг импортов ModuleNotFoundError переходом в директорию cd 1_main,
-                локальный запуск uvicorn успешно протестирован ответом 200 OK на корневом эндпоинте.
-• Вектор спринта (11.4): Создание полноценных финансовых API-маршрутов в файле api.py (эндпоинты для создания расхода/дохода, удаления операции и
-    получения истории транзакций пользователя), которые будут принимать HTTP-запросы и
-        вызывать методы созданного объекта repository для прямой интеграции с базой данных и фронтендом Telegram Mini App.
+• Пройденный шаг (11.4 - Часть 1): В файле api.py успешно реализован профессиональный POST-эндпоинт /transactions для создания расхода/дохода.
+    Внедрена DTO-схема TransactionCreate на Pydantic для строгой валидации полей user_id, amount, category и description.
+        Настроена сборка бизнес-модели Transaction с технической заглушкой transaction_id=0.
+            Реализована асинхронная интеграция с БД через созданный объект репозитория методом await repository.add_transaction(transaction_instance).
+                Эндпоинт успешно протестирован и возвращает сгенерированный базой данных ID операции в формате {"transaction_id": ...}.
+• Вектор спринта (11.4 - Часть 2): Завершение создания финансовых API-маршрутов в файле api.py.
+    Необходимо спроектировать и написать GET-эндпоинт для получения истории транзакций конкретного пользователя по его user_id.
+        Реализовать DELETE-эндпоинт для удаления ошибочных финансовых операций по их идентификатору.
+            Провести комплексное сквозное тестирование всей цепочки созданных эндпоинтов для прямой интеграции с фронтендом Telegram Mini App.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ===========ФАЙЛ: 1_main\api.py ===========
 from fastapi import FastAPI
+from pydantic import BaseModel
+from models import Transaction
 from main import repository
 
 app = FastAPI()
 
-@app.get("/")
-async def root():
-    return {"status": "ok"}
+class TransactionCreate(BaseModel):
+    user_id: int
+    amount: float
+    category: str
+    description: str
+
+@app.post("/transactions")
+async def creat_transaction(payload: TransactionCreate):
+    transaction_instance = Transaction(
+        transaction_id=0,
+        user_id=payload.user_id,
+        amount=payload.amount,
+        category=payload.category,
+        description=payload.description
+    )
+    creat_transaction_id = await repository.add_transaction(transaction_instance)
+
+    return {"transaction_id": creat_transaction_id}
 ===========ФАЙЛ: 1_main\config.py ===========
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -142,6 +160,8 @@ class Transaction:
     def type(self, new_type):
         if len(new_type.strip()) > 0:
             self.__transaction_type = new_type
+
+
 ===========ФАЙЛ: 1_main\wallet_repository.py ===========
 from asyncpg import connect
 
