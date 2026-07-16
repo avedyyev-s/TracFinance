@@ -1,17 +1,22 @@
 class Transaction:
-    def __init__(self, transaction_id, amount, category, transaction_type):
+    def __init__(self, transaction_id, user_id, amount, category, description):
         self.__transaction_id = transaction_id
+        self.__user_id = user_id
         self.__amount = 0
         self.__category = ""
-        self.__transaction_type = ""
+        self.__description = ""
         self.amount = amount
         self.category = category
-        self.transaction_type =  transaction_type
+        self.description =  description
 
     @property
-    def id(self):
+    def transaction_id(self):
         return self.__transaction_id
     
+    @property
+    def user_id(self):
+        return self.__user_id
+
     @property
     def amount(self):
         return self.__amount
@@ -21,8 +26,8 @@ class Transaction:
         return self.__category
     
     @property
-    def type(self):
-        return self.__transaction_type
+    def description(self):
+        return self.__description
     
     @amount.setter
     def amount(self, new_amount):
@@ -34,7 +39,7 @@ class Transaction:
         if len(new_category.strip()) > 0:
             self.__category = new_category
 
-    @type.setter
-    def type(self, new_type):
-        if len(new_type.strip()) > 0:
-            self.__transaction_type = new_type
+    @description.setter
+    def description(self, new_description):
+        if len(new_description.strip()) > 0:
+            self.__description = new_description

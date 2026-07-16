@@ -33,3 +33,5 @@ async def get_transactions_history(user_id: int):
 async def del_transaction(transaction_id: int):
     transaction_delete = await repository.delete_transaction(transaction_id)
     return {"delete_transaction": "successfully deleted"}
+
+
