@@ -55,15 +55,11 @@
 • Архив проектов: orders-manager (Консоль + psycopg2 + aiogram buttons).
 • Текущий проект: Учет расходов и доходов "TracFinance" пример проекта (budgetcoin.ru).
 • Текущий Этап: ЭТАП 3. ООП и Асинхронная архитектура.
-• Пройденный шаг (11.4 - Часть 1): В файле api.py успешно реализован профессиональный POST-эндпоинт /transactions для создания расхода/дохода.
-    Внедрена DTO-схема TransactionCreate на Pydantic для строгой валидации полей user_id, amount, category и description.
-        Настроена сборка бизнес-модели Transaction с технической заглушкой transaction_id=0.
-            Реализована асинхронная интеграция с БД через созданный объект репозитория методом await repository.add_transaction(transaction_instance).
-                Эндпоинт успешно протестирован и возвращает сгенерированный базой данных ID операции в формате {"transaction_id": ...}.
-• Вектор спринта (11.4 - Часть 2): Завершение создания финансовых API-маршрутов в файле api.py.
-    Необходимо спроектировать и написать GET-эндпоинт для получения истории транзакций конкретного пользователя по его user_id.
-        Реализовать DELETE-эндпоинт для удаления ошибочных финансовых операций по их идентификатору.
-            Провести комплексное сквозное тестирование всей цепочки созданных эндпоинтов для прямой интеграции с фронтендом Telegram Mini App.
+• Пройденный шаг (11.4 - Часть 3):
+Успешно проведено сквозное (End-to-End) тестирование API-шлюза через интерактивную документацию Swagger UI.
+Решены инфраструктурные задачи: развернуто виртуальное окружение и инициализированы таблицы БД напрямую через консоль Docker-контейнера.
+Полный жизненный цикл транзакций (создание, чтение, удаление) работает корректно. Глобальный Шаг 11.4 полностью закрыт.
+• Вектор спринта (11.5 - Часть 1): Интеграция Telegram-бота с API-сервером. Проектирование микросервисной архитектуры взаимодействия, где бот выступает в роли HTTP-клиента.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ===========ФАЙЛ: 1_main\api.py ===========
@@ -92,6 +88,19 @@ async def creat_transaction(payload: TransactionCreate):
     creat_transaction_id = await repository.add_transaction(transaction_instance)
 
     return {"transaction_id": creat_transaction_id}
+
+@app.get("/transactions/{user_id}")
+async def get_transactions_history(user_id: int):
+    transactions_history = await repository.get_user_transaction(user_id)
+    return {"transaction_history": transactions_history}
+
+@app.delete("/transactions/{transaction_id}")
+async def del_transaction(transaction_id: int):
+    transaction_delete = await repository.delete_transaction(transaction_id)
+    return {"delete_transaction": "successfully deleted"}
+
+
+
 ===========ФАЙЛ: 1_main\config.py ===========
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -103,6 +112,15 @@ class Settings(BaseSettings):
     db_name: str
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+===========ФАЙЛ: 1_main\init.sql ===========
+CREATE TABLE IF NOT EXISTS transactions (
+    id SERIAL PRIMARY KEY,
+    user_id INT NULL,
+    amount INT NULL,
+    category VARCHAR(100) NOT NULL,
+    description TEXT
+);
+
 ===========ФАЙЛ: 1_main\main.py ===========
 from config import Settings
 from wallet_repository import AsyncTransactionRepository
@@ -121,19 +139,24 @@ repository = AsyncTransactionRepository(db_config)
 
 ===========ФАЙЛ: 1_main\models.py ===========
 class Transaction:
-    def __init__(self, transaction_id, amount, category, transaction_type):
+    def __init__(self, transaction_id, user_id, amount, category, description):
         self.__transaction_id = transaction_id
+        self.__user_id = user_id
         self.__amount = 0
         self.__category = ""
-        self.__transaction_type = ""
+        self.__description = ""
         self.amount = amount
         self.category = category
-        self.transaction_type =  transaction_type
+        self.description =  description
 
     @property
-    def id(self):
+    def transaction_id(self):
         return self.__transaction_id
     
+    @property
+    def user_id(self):
+        return self.__user_id
+
     @property
     def amount(self):
         return self.__amount
@@ -143,8 +166,8 @@ class Transaction:
         return self.__category
     
     @property
-    def type(self):
-        return self.__transaction_type
+    def description(self):
+        return self.__description
     
     @amount.setter
     def amount(self, new_amount):
@@ -156,12 +179,19 @@ class Transaction:
         if len(new_category.strip()) > 0:
             self.__category = new_category
 
-    @type.setter
-    def type(self, new_type):
-        if len(new_type.strip()) > 0:
-            self.__transaction_type = new_type
+    @description.setter
+    def description(self, new_description):
+        if len(new_description.strip()) > 0:
+            self.__description = new_description
+===========ФАЙЛ: 1_main\routers.py ===========
+from fastapi import APIRouter, FastAPI
+from wallet_repository import AsyncTransactionRepository
 
+router = APIRouter()
 
+@router.post("/transactions")
+async def create_transaction_endpoint():
+    pass
 ===========ФАЙЛ: 1_main\wallet_repository.py ===========
 from asyncpg import connect
 
@@ -172,14 +202,23 @@ class AsyncTransactionRepository:
         self.__db_config = db_config
 
     async def add_transaction(self, transaction):
-        async with connect(**self.__db_config) as connection:
+        connection = await connect(**self.__db_config)
+        try:
             transaction_id = await connection.fetchval("INSERT INTO transactions (user_id, amount, category, description) VALUES ($1, $2, $3, $4) RETURNING id", transaction.user_id, transaction.amount, transaction.category, transaction.description)
-        return transaction_id
+            return transaction_id
+        finally:
+            await connection.close()
             
     async def delete_transaction(self, transaction_id):
-        async with connect(**self.__db_config) as connection:
+        connection = await connect(**self.__db_config)
+        try:
             await connection.execute("DELETE FROM transactions WHERE id = $1", transaction_id)
+        finally:
+            await connection.close()
     
     async def get_user_transaction(self, user_id):
-        async with connect(**self.__db_config) as connection:
+        connection = await connect(**self.__db_config)
+        try:
             return await connection.fetch("SELECT * FROM transactions WHERE user_id = $1", user_id)
+        finally:
+            await connection.close()
