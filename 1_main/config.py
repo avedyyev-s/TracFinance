@@ -6,5 +6,6 @@ class Settings(BaseSettings):
     db_host: str
     db_port: int
     db_name: str
+    bot_token: str
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

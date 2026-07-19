@@ -1,8 +1,12 @@
-from aiogram import Dispatcher, types, F
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 import aiohttp
+import asyncio
+from main import settings
 
+
+bot = Bot(token=settings.bot_token)
 dp = Dispatcher()
 
 class AddTransactionForm(StatesGroup):
@@ -42,3 +46,12 @@ async def process_description(message: types.Message, state: FSMContext):
             result = await response.json()
     await message.answer("Транзакция успешно добавлен!")
     await state.clear()
+
+async def main():
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Exit")

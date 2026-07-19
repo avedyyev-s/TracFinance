@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS transactions (
-    id SERIAL PRIMARY KEY,
-    user_id INT NULL,
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NULL,
     amount INT NULL,
     category VARCHAR(100) NOT NULL,
     description TEXT
